@@ -7,6 +7,8 @@ const CorteCajaSchema = new mongoose.Schema({
   usuario: { type: mongoose.Schema.Types.ObjectId, ref: "Usuario", required: true },
   farmacia: { type: mongoose.Schema.Types.ObjectId, ref: "Farmacia", required: true },
 
+  turnoExtraAutorizado: { type: Boolean, default: false },
+
   efectivoInicial: { type: Number, required: true },
 
   // ventas
@@ -16,8 +18,8 @@ const CorteCajaSchema = new mongoose.Schema({
   ventasVale: { type: Number, default: 0 },
   devolucionesVale: { type: Number, default: 0 },
   devolucionesEfectivo: { type: Number, default: 0 },
-  ventasRealizadas: {type: Number, default: 0 },
-  devolucionesRealizadas: {type: Number, default: 0 },
+  ventasRealizadas: { type: Number, default: 0 },
+  devolucionesRealizadas: { type: Number, default: 0 },
 
   // pedidos
   pedidosEfectivo: { type: Number, default: 0 },

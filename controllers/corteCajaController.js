@@ -3,6 +3,7 @@ const Venta = require('../models/Venta');
 const Pedido = require('../models/Pedido');
 const Devolucion = require('../models/Devolucion');
 const Cancelacion = require('../models/Cancelacion');
+const Usuario = require('../models/Usuario');
 
 const crearCorte = async (req, res) => {
   const usuario = req.usuario;
@@ -14,7 +15,28 @@ const crearCorte = async (req, res) => {
 
   const ahora = new Date();
 
+  // 🔍 Verificar si ya cerró un turno hoy
+  const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+
+  const mañana = new Date(hoy);
+  mañana.setDate(mañana.getDate() + 1);
+
   try {
+    const corteCerradoHoy = await CorteCaja.findOne({
+      usuario: usuario._id,
+      farmacia: farmaciaId,
+      fechaInicio: { $gte: hoy, $lt: mañana },
+      fechaFin: { $ne: null }, // Ya se cerró
+      turnoExtraAutorizado: { $ne: true } // No fue autorizado
+    });
+
+    if (corteCerradoHoy) {
+      return res.status(403).json({
+        mensaje: 'Ya cerraste tu turno de hoy. No puedes abrir otro turno sin autorización.'
+      });
+    }
+
     const corte = new CorteCaja({
       fechaInicio: ahora,
       usuario: usuario._id,
@@ -24,11 +46,13 @@ const crearCorte = async (req, res) => {
 
     await corte.save();
     res.status(201).json({ mensaje: 'Corte iniciado', corte });
+
   } catch (err) {
     console.error('Error al iniciar corte:', err);
     res.status(500).json({ mensaje: 'Error al iniciar corte' });
   }
 };
+
 
 const finalizarCorte = async (req, res) => {
   const corteId = req.params.corteId;
@@ -181,9 +205,102 @@ const obtenerCorteActivo = async (req, res) => {
   }
 };
 
+const autorizarTurnoExtra = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const corte = await CorteCaja.findById(id);
+
+    if (!corte) {
+      return res.status(404).json({ mensaje: 'Corte de caja no encontrado' });
+    }
+
+    corte.turnoExtraAutorizado = true;
+    await corte.save();
+
+    res.json({ mensaje: 'Turno extra autorizado correctamente', corte });
+  } catch (error) {
+    console.error('Error al autorizar turno extra:', error);
+    res.status(500).json({ mensaje: 'Error al autorizar turno extra' });
+  }
+};
+
+const verificarSiPuedeAbrirTurno = async (req, res) => {
+  const usuario = req.usuario;
+  const { farmaciaId } = req.params;
+
+  const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+  const mañana = new Date(hoy);
+  mañana.setDate(mañana.getDate() + 1);
+
+  try {
+    const corteCerradoHoy = await CorteCaja.findOne({
+      usuario: usuario._id,
+      farmacia: farmaciaId,
+      fechaInicio: { $gte: hoy, $lt: mañana },
+      fechaFin: { $ne: null }, // ya se cerró
+      turnoExtraAutorizado: { $ne: true }
+    });
+
+    if (corteCerradoHoy) {
+      return res.status(200).json({ puedeAbrirTurno: false });
+    } else {
+      return res.status(200).json({ puedeAbrirTurno: true });
+    }
+
+  } catch (err) {
+    console.error('Error al verificar turno:', err);
+    res.status(500).json({ mensaje: 'Error al verificar si puede abrir turno' });
+  }
+};
+
+const obtenerCortesFiltrados = async (req, res) => {
+  const { fechaInicioDesde, fechaInicioHasta, nombreUsuario } = req.query;
+  const filtro = {};
+
+  // 🔹 Rango de fechas
+  if (fechaInicioDesde) {
+    const desde = new Date(fechaInicioDesde);
+    const hasta = fechaInicioHasta
+      ? new Date(fechaInicioHasta)
+      : new Date(fechaInicioDesde); // usar la misma si no se manda fechaHasta
+
+    desde.setHours(0, 0, 0, 0);
+    hasta.setHours(23, 59, 59, 999);
+
+    filtro.fechaInicio = { $gte: desde, $lte: hasta };
+  }
+
+  try {
+    // 🔹 Filtro por nombre de usuario
+    if (nombreUsuario) {
+      const usuarios = await Usuario.find({
+        nombre: { $regex: new RegExp(nombreUsuario, 'i') },
+      }).select('_id');
+
+      const ids = usuarios.map(u => u._id);
+      filtro.usuario = { $in: ids };
+    }
+
+    const cortes = await CorteCaja.find(filtro)
+      .populate('usuario', 'nombre')
+      .populate('farmacia', 'nombre')
+      .sort({ fechaInicio: -1 });
+
+    res.json({ cortes });
+  } catch (err) {
+    console.error('Error al filtrar cortes:', err);
+    res.status(500).json({ mensaje: 'Error al filtrar cortes de caja' });
+  }
+};
+
 
 module.exports = {
   crearCorte,
   finalizarCorte,
-  obtenerCorteActivo
+  obtenerCorteActivo,
+  autorizarTurnoExtra,
+  verificarSiPuedeAbrirTurno,
+  obtenerCortesFiltrados
 };

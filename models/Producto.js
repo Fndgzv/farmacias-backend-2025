@@ -17,7 +17,7 @@ const ProductoSchema = new mongoose.Schema({
     stockMaximo: { type: Number, required: true, default: 100 },
     ubicacion: { type: String },
     categoria: { type: String, required: true },
-    generico: { type: Boolean },
+    generico: { type: Boolean, default: false },
 
     promoLunes: {
         porcentaje: { type: Number, min: 0, max: 100 },
