@@ -2,7 +2,7 @@ const InventarioFarmacia = require('../models/InventarioFarmacia');
 const Producto = require('../models/Producto');
 
 
-function construirFiltroProducto({ nombre, categoria, codigoBarras, inapam }) {
+function construirFiltroProducto({ nombre, categoria, codigoBarras, inapam, generico }) {
     const filtros = { $and: [] };
 
     if (nombre) {
@@ -23,8 +23,20 @@ function construirFiltroProducto({ nombre, categoria, codigoBarras, inapam }) {
         filtros.$and.push({ codigoBarras });
     }
 
-    if (inapam !== undefined && inapam !== '') {
+    /* if (typeof inapam === 'string' && (inapam === 'true' || inapam === 'false')) {
         filtros.$and.push({ inapam: inapam === 'true' });
+    }
+
+    if (typeof generico === 'string' && (generico === 'true' || generico === 'false')) {
+        filtros.$and.push({ generico: generico === 'true' });
+    } */
+
+    if (inapam === 'true' || inapam === 'false') {
+        filtros.$and.push({ descuentoINAPAM: inapam === 'true' });
+    }
+
+    if (generico === 'true' || generico === 'false') {
+        filtros.$and.push({ generico: generico === 'true' });
     }
 
     // Si no hay condiciones en $and, eliminarlo para evitar filtrado vacío
@@ -37,15 +49,14 @@ function construirFiltroProducto({ nombre, categoria, codigoBarras, inapam }) {
 
 // Obtener inventario con filtros
 exports.obtenerInventarioFarmacia = async (req, res) => {
-    const { farmacia, nombre, codigoBarras, categoria, inapam } = req.query;
+    const { farmacia, nombre, codigoBarras, categoria, inapam, generico } = req.query;
 
     if (!farmacia) {
         return res.status(400).json({ mensaje: "Debe especificar una farmacia." });
     }
 
     try {
-        const filtrosProducto = construirFiltroProducto({ nombre, categoria, codigoBarras, inapam });
-
+        const filtrosProducto = construirFiltroProducto({ nombre, categoria, codigoBarras, inapam, generico });
         const productos = await Producto.find(filtrosProducto).select('_id');
         const productosIds = productos.map(p => p._id);
 
@@ -104,7 +115,7 @@ exports.actualizarInventarioMasivo = async (req, res) => {
 
 
 
-// Actualización individual
+// Actualización individual de un producto
 exports.actualizarInventarioIndividual = async (req, res) => {
     const { id } = req.params;
     const { existencia, stockMax, stockMin, precioVenta } = req.body;
